@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digit Recognition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">🧠 Draw a Digit</h1>
+
+    <div class="bg-white shadow-lg rounded-lg p-4 flex flex-col items-center space-y-4">
+        <canvas id="canvas" width="280" height="280" class="border-2 border-gray-400 rounded-lg"></canvas>
+
+        <div class="flex space-x-4">
+            <button onclick="predictDigit()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                Predict
+            </button>
+            <button onclick="clearCanvas()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition">
+                Clear
+            </button>
+        </div>
+
+        <div id="loader" class="hidden flex items-center space-x-2">
+            <div class="w-4 h-4 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-blue-600 font-medium">Predicting...</p>
+        </div>
+
+        <p id="result" class="text-xl font-semibold text-gray-700"></p>
+    </div>
+
+    <script>
+        let canvas = document.getElementById("canvas");
+        let ctx = canvas.getContext("2d");
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 15;
+        ctx.lineCap = "round";
+
+        let drawing = false;
+
+        function getPosition(e) {
+            let rect = canvas.getBoundingClientRect();
+            let x = (e.clientX || e.touches[0].clientX) - rect.left;
+            let y = (e.clientY || e.touches[0].clientY) - rect.top;
+            return { x, y };
+        }
+
+        canvas.addEventListener("mousedown", startDraw);
+        canvas.addEventListener("touchstart", startDraw, { passive: false });
+
+        canvas.addEventListener("mouseup", stopDraw);
+        canvas.addEventListener("mouseleave", stopDraw);
+        canvas.addEventListener("touchend", stopDraw);
+
+        canvas.addEventListener("mousemove", draw);
+        canvas.addEventListener("touchmove", draw, { passive: false });
+
+        function startDraw(e) {
+            e.preventDefault();
+            drawing = true;
+            let pos = getPosition(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+        }
+
+        function stopDraw() {
+            drawing = false;
+            ctx.beginPath();
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            e.preventDefault();
+            let pos = getPosition(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            document.getElementById("result").innerText = "";
+        }
+
+        function showLoader(show) {
+            document.getElementById("loader").style.display = show ? "flex" : "none";
+        }
+
+        function predictDigit() {
+            showLoader(true);
+            let image = canvas.toDataURL("image/png");
+            let base64Image = image.split(",")[1];
+
+            fetch("http://127.0.0.1:5000/predict", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ image: base64Image })
+            })
+            .then(response => response.json())
+            .then(data => {
+                showLoader(false);
+                if (data.prediction !== undefined) {
+                    document.getElementById("result").innerText = "Predicted Digit: " + data.prediction;
+                } else {
+                    document.getElementById("result").innerText = "Error: " + data.error;
+                }
+            })
+            .catch(error => {
+                showLoader(false);
+                document.getElementById("result").innerText = "Error: " + error;
+            });
+        }
+    </script>
+</body>
+</html>
